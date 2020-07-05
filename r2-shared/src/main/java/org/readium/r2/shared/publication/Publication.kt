@@ -98,6 +98,7 @@ class Publication(
     /**
      * The URL where this publication is served, computed from the [Link] with `self` relation.
      */
+
     val baseUrl: URL?
         get() = links.firstWithRel("self")
             ?.let { it.href.toUrlOrNull()?.removeLastComponent() }
@@ -134,30 +135,13 @@ class Publication(
 
     /**
      * Returns the resource targeted by the given non-templated [link].
-     *
-     * The [link].href property is searched for in the [readingOrder], [resources] and [links] properties
-     * to find the matching manifest [Link]. This is to make sure that
-     * the [Link] given to the [fetcher] contains all properties declared in the [manifest].
-     *
-     * The properties are searched recursively following [Link::alternate] and [Link::children].
      */
     fun get(link: Link): Resource {
         if (DEBUG) { require(!link.templated) { "You must expand templated links before calling [Publication.get]" } }
 
-        @Suppress("NAME_SHADOWING")
-        // Parameters in href must not be lost.
-        val link = linkWithHref(link.href)?.copy(href = link.href, templated = link.templated)
-            ?: link
-
         services.forEach { service -> service.get(link)?.let { return it } }
         return fetcher.get(link)
     }
-
-    /**
-     * Returns the resource targeted by the given [href]. Equivalent to get(Link(href: href))).
-     */
-    fun get(href: String): Resource =
-        get(Link(href = href))
 
     /**
      * Closes any opened resource associated with the [Publication], including [services].
@@ -192,7 +176,6 @@ class Publication(
         }
     }
 
-
     /**
      * Sets the URL where this [Publication]'s RWPM manifest is served.
      */
@@ -220,13 +203,9 @@ class Publication(
     internal fun linksWithRole(role: String): List<Link> =
         subcollections[role]?.firstOrNull()?.links ?: emptyList()
 
-    // FIXME: Why do we need to check if there's a / at the beginning? Hrefs should be normalized everywhere
-    private fun Link.hasHref(href: String) =
-        this.href == href || this.href == "/$href"
-
     private fun List<Link>.deepLinkWithHref(href: String): Link? {
         for (l in this) {
-            if (l.hasHref(href))
+            if (l.href == href)
                 return l
             else {
                 l.alternates.deepLinkWithHref(href)?.let { return it }
@@ -263,9 +242,11 @@ class Publication(
 
         @Deprecated("Parse a RWPM with [Manifest::fromJSON] and then instantiate a Publication",
             ReplaceWith("Manifest.fromJSON(manifestDict)?.let { Publication(it, fetcher = aFetcher) }",
-                "org.readium.r2.shared.publication.Publication", "org.readium.r2.shared.publication.Manifest"))
-        fun fromJSON(json: JSONObject?, normalizeHref: LinkHrefNormalizer = LinkHrefNormalizerIdentity): Publication? =
-            Manifest.fromJSON(json, normalizeHref, null)?.let { Publication(it) }
+                "org.readium.r2.shared.publication.Publication", "org.readium.r2.shared.publication.Manifest"),
+            level = DeprecationLevel.ERROR)
+        fun fromJSON(json: JSONObject?, normalizeHref: LinkHrefNormalizer = LinkHrefNormalizerIdentity): Publication? {
+            throw NotImplementedError()
+        }
 
     }
 
@@ -379,6 +360,8 @@ class Publication(
     sealed class OpeningError(cause: Throwable? = null) : Throwable(cause) {
 
         object UnsupportedFormat : OpeningError()
+
+        object NotFound : OpeningError()
 
         class ParsingFailed(cause: Throwable) : OpeningError(cause)
 

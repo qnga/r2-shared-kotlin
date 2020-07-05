@@ -16,8 +16,10 @@ import org.json.JSONObject
 import org.readium.r2.shared.JSONable
 import org.readium.r2.shared.extensions.optStringsFromArrayOrSingle
 import org.readium.r2.shared.extensions.putIfNotEmpty
+import org.readium.r2.shared.extensions.removeLastComponent
+import org.readium.r2.shared.extensions.toUrlOrNull
+import org.readium.r2.shared.normalize
 import org.readium.r2.shared.toJSON
-import org.readium.r2.shared.util.logging.JsonWarning
 import org.readium.r2.shared.util.logging.WarningLogger
 import org.readium.r2.shared.util.logging.log
 
@@ -72,8 +74,10 @@ data class Manifest(
 
     companion object {
 
-        fun fromJSON(json: JSONObject?, normalizeHref: LinkHrefNormalizer = LinkHrefNormalizerIdentity): Manifest? =
-            fromJSON(json, normalizeHref, null)
+        fun fromJSON(
+            json: JSONObject?,
+            packaged: Boolean = false
+        ): Manifest? = fromJSON(json,  packaged, null)
 
         /**
          * Parses a [Publication] from its RWPM JSON representation.
@@ -84,10 +88,24 @@ data class Manifest(
          */
         internal fun fromJSON(
             json: JSONObject?,
-            normalizeHref: LinkHrefNormalizer = LinkHrefNormalizerIdentity,
+            packaged: Boolean,
             warnings: WarningLogger?
         ): Manifest? {
             json ?: return null
+
+            val baseUrl =
+                if (packaged)
+                    "/"
+                else
+                   Link.fromJSONArray(json.optJSONArray("links"), warnings = warnings)
+                        .firstWithRel("self")
+                        ?.href
+                        ?.toUrlOrNull()
+                        ?.removeLastComponent()
+                        ?.toString()
+                        ?: "/"
+
+            val normalizeHref = { href: String -> normalize(baseUrl, href) }
 
             val context = json.optStringsFromArrayOrSingle("@context", remove = true)
 
@@ -98,6 +116,7 @@ data class Manifest(
             }
 
             val links = Link.fromJSONArray(json.remove("links") as? JSONArray, normalizeHref, warnings)
+                .map { if (!packaged || "self" !in it.rels) it else it.copy(rels = it.rels - "self" + "alternate") }
 
             // [readingOrder] used to be [spine], so we parse [spine] as a fallback.
             val readingOrderJSON = (json.remove("readingOrder") ?: json.remove("spine")) as? JSONArray
