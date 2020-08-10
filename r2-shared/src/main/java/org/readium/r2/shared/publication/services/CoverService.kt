@@ -15,11 +15,12 @@ import android.util.Size
 import org.readium.r2.shared.extensions.scaleToFit
 import org.readium.r2.shared.extensions.toPng
 import org.readium.r2.shared.fetcher.BytesResource
+import org.readium.r2.shared.fetcher.FailureResource
+import org.readium.r2.shared.fetcher.LazyResource
 import org.readium.r2.shared.fetcher.Resource
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.ServiceFactory
-import org.readium.r2.shared.util.Try
 
 /**
  * Provides an easy access to a bitmap version of the publication cover.
@@ -102,19 +103,21 @@ abstract class GeneratedCoverService : CoverService {
         if (link.href != coverLink.href)
             return null
 
-        return BytesResource {
-            try {
-                val bitmap = cover()
-                val png = bitmap.toPng() ?: throw Resource.Error.Other(Exception("Unable to convert cover to PNG."))
-                Pair(
-                    coverLink.copy(width = bitmap.width, height = bitmap.height),
-                    Try.success(png)
-                )
-            } catch (e: Resource.Error) {
-                Pair(link, Try.failure(e))
+        return LazyResource {
+            val cover = cover()
+            val png = cover.toPng()
+            if (png == null) {
+                val error = Exception("Unable to convert cover to PNG.")
+                FailureResource(coverLink, error)
+            } else {
+                @Suppress("NAME_SHADOWING")
+                val link = coverLink.copy(width = cover.width, height = cover.height)
+                BytesResource(link, png)
             }
+
         }
     }
+
 }
 
 /**
