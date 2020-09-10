@@ -44,7 +44,7 @@ internal class ExplodedArchive(private val directory: File)  : Archive {
 
         override suspend fun read(range: LongRange?): ByteArray {
             val stream = withContext(Dispatchers.IO) {
-                file.inputStream()
+                file.inputStream().buffered()
             }
 
             return stream.use {

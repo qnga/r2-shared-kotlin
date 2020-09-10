@@ -124,7 +124,7 @@ class FileFetcher(private val paths: Map<String, File>) : Fetcher {
 
                 // The stream must not be closed here because it would close the underlying
                 // [FileChannel] too. Instead, [close] is responsible for that.
-                Channels.newInputStream(channel).run {
+                Channels.newInputStream(channel).buffered().run {
                     val length = range.last - range.first + 1
                     read(length)
                 }

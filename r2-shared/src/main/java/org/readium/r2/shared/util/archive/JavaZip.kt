@@ -45,7 +45,7 @@ internal class JavaZip(private val archive: ZipFile) : Archive {
 
         override suspend fun read(range: LongRange?): ByteArray {
             val stream = withContext(Dispatchers.IO) {
-                archive.getInputStream(entry)
+                archive.getInputStream(entry).buffered()
             }
             return stream.use {
                 if (range == null)
